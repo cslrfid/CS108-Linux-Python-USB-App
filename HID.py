@@ -84,6 +84,10 @@ HidDevice_SetOutputReport_Interrupt = _mod.HidDevice_SetOutputReport_Interrupt
 HidDevice_SetOutputReport_Interrupt.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_byte), ctypes.c_int)
 HidDevice_SetOutputReport_Interrupt.restype = ctypes.c_byte 
 
+HidDevice_GetInputReport_Interrupt = _mod.HidDevice_GetInputReport_Interrupt
+HidDevice_GetInputReport_Interrupt.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_byte), ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_byte))
+HidDevice_GetInputReport_Interrupt.restype = ctypes.c_byte 
+
 HidDevice_GetOutputReportBufferLength = _mod.HidDevice_GetOutputReportBufferLength
 HidDevice_GetOutputReportBufferLength.argtypes = (ctypes.c_void_p,)
 HidDevice_GetOutputReportBufferLength.restype = ctypes.c_int16
@@ -148,7 +152,28 @@ def TransmitData(hdl, buffer, bufferSize):
     return success
 
 def ReceiveData(hdl, buffer, bufferSize, bytesRead):
-    pass
+    success = False
+    reportSize = HidDevice_GetOutputReportBufferLength(hdl)
+    if bufferSize >= SIZE_MAX_READ:
+        numReports = bufferSize / SIZE_MAX_READ
+        reportBufferSize = numReports * reportSize
+        reportBuffer = bytes(reportBufferSize)
+        reportBufferRead = ctypes.c_byte()
+        
+        pnt = bytes(reportBufferSize)
+
+        status = HidDevice_GetInputReport_Interrupt(hdl, pnt, reportBufferSize, numReports, reportBufferRead)
+        if status == HID_DEVICE_SUCCESS or status == HID_DEVICE_TRANSFER_TIMEOUT:
+            bytesRead = 0
+            reportBuffer[:reportBufferSize] = pnt[:reportBufferSize]
+            
+            for i in range(0, reportBufferRead, reportSize):
+                bytesInReport = reportBuffer[i + 1]
+                buffer[bytesRead:bytesRead+bytesInReport] = reportBuffer[i+2:i+2+bytesInReport]
+                bytesRead += bytesInReport
+
+            success = True
+    return success
 
 
 def main():
