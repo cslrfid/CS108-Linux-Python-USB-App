@@ -111,7 +111,7 @@ def Open(deviceIndex):
 
     status = HidDevice_Open(ctypes.byref(handle), deviceIndex, VID, PID, MAX_REPORT_REQUEST_XP)
     if status == HID_DEVICE_SUCCESS:
-        HidDevice_SetTimeouts(ctypes.byref(handle), HID_READ_TIMEOUT, HID_WRITE_TIMEOUT)
+        HidDevice_SetTimeouts(handle, HID_READ_TIMEOUT, HID_WRITE_TIMEOUT)
         return handle.value
     return None
 
@@ -142,9 +142,10 @@ def TransmitData(handle, buffer):
 
         while bytesWritten < bytesToWrite:
             transferSize = min(bytesToWrite - bytesWritten, SIZE_MAX_WRITE)
+            report = bytearray(reportSize)
             report[0] = ID_OUT_DATA
             report[1] = transferSize
-            report[2:2+transferSize] = buffer[bytesWritten:transferSize]
+            report[2:2+transferSize] = buffer[bytesWritten:bytesWritten+transferSize]
             # pnt = ctypes.cast(bytes(report), ctypes.POINTER(ctypes.c_byte))
             if HidDevice_SetOutputReport_Interrupt(hdl, bytes(report), reportSize) != HID_DEVICE_SUCCESS:
                 # Stop transmitting if there was an error

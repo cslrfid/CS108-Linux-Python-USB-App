@@ -40,7 +40,6 @@ def UpdateBTImage(handle, stream):
     command = bytes()
     retry = 0
 
-    print("\n")
     while True:
         if retry == 0:
             if len(stream) >=64:
@@ -63,11 +62,9 @@ def UpdateBTImage(handle, stream):
             if status:
                 if (readBuffer[0] == BTCommands.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xC0) and (readBuffer[9] == 0x01):
                     if readBuffer[10] == 1:
-                        print("Bluetooth firmwarwe Update Fail")
                         return False
                     elif readBuffer[10] == 2:
-                        print("Bluetooth firmwarwe Update Successfull.  Wait for 15 seconds")
-                        time.sleep(10)
+                        time.sleep(15)
                         return True
                     else:
                         print("\rCompleted: {0:3.1f}%".format((subpart * 100) / BTCommands.BT_IMAGE_TOTAL_SUBPART), end="")

@@ -58,7 +58,7 @@ def SendImageData(subpart_data, subpart):
     # header
     buffer[0] = PREFIX
     buffer[1] = CONNECTION_USB
-    buffer[2] = 70; #payload length
+    buffer[2] = 70 #payload length
     buffer[3] = TYPE_BT
     buffer[4] = RESERVE
     buffer[5] = LINK_DOWN
