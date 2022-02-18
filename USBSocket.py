@@ -2,6 +2,7 @@ import time
 from datetime import datetime
 import HID
 import BTCommands
+import Constants
 
 def TransmitData(handle, buffer):
     success = False
@@ -34,7 +35,7 @@ def ReceiveData(handle, bufferSize, timeout):
                 print("USBSocket: recive timeout")
                 success = False
                 break
-            time.sleep(BTCommands.TIMER_READ * 0.001)
+            time.sleep(Constants.TIMER_READ * 0.001)
     except:
         print("USBSocket: failed receiving data")
         success = False

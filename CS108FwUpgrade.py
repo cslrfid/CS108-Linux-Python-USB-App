@@ -1,8 +1,10 @@
 import BTCommands
+import SLCommands
 import USBSocket
 import CRC
 import HID
 import utils
+import Constants
 
 def GetBTVersion(handle):
     command = BTCommands.GetVersion()
@@ -14,7 +16,7 @@ def GetBTVersion(handle):
     if HID.IsOpen(handle):
         status, buffer = USBSocket.ReceiveData(handle, 128, 2000)
         if status:
-            if (buffer[0] == BTCommands.PREFIX) and (len(buffer) >= 13) and (buffer[8] == 0xC0) and (buffer[9] == 0x00):
+            if (buffer[0] == Constants.PREFIX) and (len(buffer) >= 13) and (buffer[8] == 0xC0) and (buffer[9] == 0x00):
                 crc = (buffer[6] << 8) | buffer[7]
 
                 if (crc != 0) and (not CRC.CheckCRC(buffer, 0, 13, crc)):  
@@ -31,7 +33,7 @@ def GetBTVersion(handle):
         return ""
 
 def UpdateBTImage(handle, stream):
-    if len(stream) != BTCommands.BT_IMAGE_SIZE:
+    if len(stream) != Constants.BT_IMAGE_SIZE:
         print("Incorrect image file size.")
         return False
 
@@ -60,7 +62,7 @@ def UpdateBTImage(handle, stream):
             readBuffer = bytes(128)
             status, readBuffer = USBSocket.ReceiveData(handle, len(readBuffer), 5000)
             if status:
-                if (readBuffer[0] == BTCommands.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xC0) and (readBuffer[9] == 0x01):
+                if (readBuffer[0] == Constants.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xC0) and (readBuffer[9] == 0x01):
                     if readBuffer[10] == 1:
                         print("")
                         return False
@@ -70,7 +72,7 @@ def UpdateBTImage(handle, stream):
                         print("")
                         return True
                     else:
-                        print("\rCompleted: {0:3.1f}%".format((subpart * 100) / BTCommands.BT_IMAGE_TOTAL_SUBPART), end="")
+                        print("\rCompleted: {0:3.1f}%".format((subpart * 100) / Constants.BT_IMAGE_TOTAL_SUBPART), end="")
                         subpart+=1
                         retry = 0
                 else:
@@ -82,4 +84,53 @@ def UpdateBTImage(handle, stream):
             return False
 
 
-                    
+def UpdateSilabImage(handle, stream):
+    if len(stream) != Constants.SILAB_IMAGE_SIZE:
+        print("Incorrect image file size.")
+        return False
+
+    subpart = 1
+    subpartBuffer = bytes(114)
+    command = bytes()
+    retry = 0
+
+    while True:
+        if retry == 0:
+            if len(stream) >= 114:
+                subpartBuffer = stream[0:114]
+                stream = stream[114:]
+
+        if len(subpartBuffer) > 0:
+            command = SLCommands.SendImageData(subpartBuffer, subpart)
+        else:
+            print("Not enough image data.")
+            return False
+
+        if not USBSocket.TransmitData(handle, command):
+            print("Device failed to transmit data.")
+            return False
+
+        if HID.IsOpen(handle):
+            readBuffer = bytes(128)
+            status, readBuffer = USBSocket.ReceiveData(handle, len(readBuffer), 1000)
+            if status:
+                if (readBuffer[0] == Constants.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xB0) and (readBuffer[9] == 0x01):
+                    if readBuffer[10] == 1:
+                        print("")
+                        return False
+                    elif readBuffer[10] == 2:
+                        print("\rCompleted:100.0%")
+                        utils.WaitForSeconds(15)
+                        print("")
+                        return True
+                    else:
+                        print("\rCompleted: {0:3.1f}%".format((subpart * 100) / Constants.SILAB_IMAGE_SIZE), end="")
+                        subpart+=1
+                        retry = 0
+                else:
+                    retry+=1
+            else:
+                retry+=1
+        else:
+            print("Device is not connected.")
+            return False        
