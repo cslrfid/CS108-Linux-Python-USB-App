@@ -62,7 +62,7 @@ Run the main.py with the firmware file as the argument:
 Usage: python main.py [ /B | /N | /R ] file
 ```	
 
-####Example
+Example
 ```
 $ python main.py /B ./FW/CS108_CC2541_APP_V1017.bin 
 ----------------------------
