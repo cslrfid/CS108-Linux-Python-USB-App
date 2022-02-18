@@ -1,35 +1,41 @@
 import HID
 import CS108FwUpgrade
 import sys
+import os
 
 def main():
     
     handle = 0
-    print("CS108 Bluetooth Firmware Upgrade Toool")
+    print("----------------------------")
+    print("CS108 Firmware Upgrade Toool")
+    print("----------------------------")
 
-    if (len(sys.argv) < 3):
-        print("Usage: python main.py [ /B | /N | /R ] file_path")
+    if (len(sys.argv) < 3) or (sys.argv[1].lower() != "/b" and sys.argv[1].lower() != "/n" and sys.argv[1].lower() != "/r"):
+        print("Usage: python main.py [ /B | /N | /R ] file")
+        return
+    
+    if not os.path.exists(sys.argv[2]):
+        print("File specificed ({}) not found".format(sys.argv[2]))
+        return
+    
+    NumOfConnectedDevices = HID.GetNumHidDevices()
+    print("Number of USB device(s) connected: ", NumOfConnectedDevices)
+    for i in range(NumOfConnectedDevices):
+        print("Device {}: {}".format(i, HID.GetHidString(i)))      
+    
+    if NumOfConnectedDevices > 0:
+        print("Open the first device found...")
+        handle = HID.Open(0)
+        if handle != None:
+            print("Device opened: handle={}".format(handle))
+        else:
+            print("Unable to open device")
+            return
+    else:
+        print("No CS108 device connected")
         return
 
     if sys.argv[1].lower() == "/b":
-        NumOfConnectedDevices = HID.GetNumHidDevices()
-        print("Number of USB device(s) connected: ", NumOfConnectedDevices)
-        for i in range(NumOfConnectedDevices):
-            print("Device {}: HIDString={}".format(i, HID.GetHidString(i)))      
-        
-        if NumOfConnectedDevices > 0:
-            print("Open the first device found...")
-            handle = HID.Open(0)
-            if handle != None:
-                print("Device opened: {}".format(handle))
-            else:
-                print("Unable to open device")
-                return
-        else:
-            print("No CS108 device connected.  Exit program")
-            return
-
-        print("Get BT firmware version")
         btVersion=CS108FwUpgrade.GetBTVersion(handle)
         print("Current Bluetooth firmware version: {}".format(btVersion))
 
@@ -45,8 +51,6 @@ def main():
             print("Bluetooth firmware upgrade failed")
         
         HID.Close(handle)
-    else:
-        print("Usage: python main.py [ /B | /N | /R ] file_path")
 
  
 if __name__ == '__main__':

@@ -1,8 +1,8 @@
-from time import time
 import BTCommands
 import USBSocket
 import CRC
 import HID
+import utils
 
 def GetBTVersion(handle):
     command = BTCommands.GetVersion()
@@ -62,9 +62,12 @@ def UpdateBTImage(handle, stream):
             if status:
                 if (readBuffer[0] == BTCommands.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xC0) and (readBuffer[9] == 0x01):
                     if readBuffer[10] == 1:
+                        print("")
                         return False
                     elif readBuffer[10] == 2:
-                        time.sleep(15)
+                        print("\rCompleted:100.0%")
+                        utils.WaitForSeconds(15)
+                        print("")
                         return True
                     else:
                         print("\rCompleted: {0:3.1f}%".format((subpart * 100) / BTCommands.BT_IMAGE_TOTAL_SUBPART), end="")
