@@ -42,7 +42,7 @@ def SendImageData(subpart_data, subpart):
     buffer[12] = (subpart >> 8) & 0xFF
     buffer[13] = subpart & 0xFF
 
-    for i in range(0, 64):
+    for i in range(0, len(subpart_data)):
         buffer[i + 14] = subpart_data[i]
 
     return bytes(buffer)

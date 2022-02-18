@@ -51,7 +51,22 @@ def main():
             print("Bluetooth firmware upgrade failed")
         
         HID.Close(handle)
+    elif sys.argv[1].lower() == "/n":
+        slVersion=CS108FwUpgrade.GetSLVersion(handle)
+        print("Current Silicon Labs (network processor) firmware version: {}".format(slVersion))
 
+        fileName = sys.argv[2]
+        print("Upgrade Silicon Labs (network processor) firmware with file:", fileName)
+        in_file = open(fileName, "rb") # opening for [r]eading as [b]inary
+        stream = in_file.read()
+        in_file.close()
+
+        if CS108FwUpgrade.UpdateSilabImage(handle, stream):
+            print("Silicon Labs (network processor) firmware upgrade successful")
+        else:
+            print("Silicon Labs (network processor) firmware upgrade failed")
+        
+        HID.Close(handle)
  
 if __name__ == '__main__':
     main()

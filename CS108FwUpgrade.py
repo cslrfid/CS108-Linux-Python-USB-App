@@ -1,5 +1,6 @@
 import BTCommands
 import SLCommands
+import RFIDCommands
 import USBSocket
 import CRC
 import HID
@@ -29,7 +30,42 @@ def GetBTVersion(handle):
             print("Cannot get bluetooth firmware version")
             return ""
     else:
-        print("Device is not connected.");
+        print("Device is not connected.")
+        return ""
+
+def GetSLVersion(handle):
+
+    command = RFIDCommands.PowerOn(True)
+
+    if not USBSocket.TransmitData(handle, command):
+        print("Device failed to transmit data.")
+        return ""
+
+    if HID.IsOpen(handle):
+        USBSocket.ReceiveData(handle, 128, 2000)
+    else:
+        print("Device is not connected.")
+        return ""
+
+    command = SLCommands.GetVersion()
+
+    if not USBSocket.TransmitData(handle, command):
+        print("Device failed to transmit data.")
+        return ""
+    
+    if HID.IsOpen(handle):
+        status, buffer = USBSocket.ReceiveData(handle, 128, 1000)
+        if status:
+            if (buffer[0] == Constants.PREFIX) and (len(buffer) >= 13) and (buffer[8] == 0xB0) and (buffer[9] == 0x00):
+                crc = (buffer[6] << 8) | buffer[7]
+
+                slVersion = "{}.{}.{}".format(buffer[10],buffer[11],buffer[12])
+                return slVersion
+        else:
+            print("Cannot get Silicon Labs (network processor) firmware version")
+            return ""
+    else:
+        print("Device is not connected.")
         return ""
 
 def UpdateBTImage(handle, stream):
@@ -47,6 +83,9 @@ def UpdateBTImage(handle, stream):
             if len(stream) >=64:
                 subpartBuffer = stream[0:64]
                 stream = stream[64:]
+            else:
+                subpartBuffer = stream[0:]
+                stream = stream[0:]
 
         if len(subpartBuffer) > 0:
             command = BTCommands.SendImageData(subpartBuffer, subpart)
@@ -99,7 +138,9 @@ def UpdateSilabImage(handle, stream):
             if len(stream) >= 114:
                 subpartBuffer = stream[0:114]
                 stream = stream[114:]
-
+            else:
+                subpartBuffer = stream[0:]
+                stream = stream[0:]
         if len(subpartBuffer) > 0:
             command = SLCommands.SendImageData(subpartBuffer, subpart)
         else:
@@ -124,7 +165,7 @@ def UpdateSilabImage(handle, stream):
                         print("")
                         return True
                     else:
-                        print("\rCompleted: {0:3.1f}%".format((subpart * 100) / Constants.SILAB_IMAGE_SIZE), end="")
+                        print("\rCompleted: {0:3.1f}%".format((subpart * 100) / Constants.SILAB_IMAGE_TOTAL_SUBPART), end="")
                         subpart+=1
                         retry = 0
                 else:
