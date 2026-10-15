@@ -1,4 +1,6 @@
 import ctypes
+import os
+import sys
 import BTCommands
 
 # USB Parameters
@@ -46,7 +48,17 @@ MAX_PATH_LENGTH = 260
 
 MAX_REPORT_REQUEST_XP = 512
 
-_mod = ctypes.cdll.LoadLibrary('libslabhiddevice.so')
+if sys.platform == 'win32':
+    # Prebuilt Silicon Labs DLL; its exports are WINAPI (stdcall)
+    _dllPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'USBDriver', 'SLABHIDDevice.dll')
+    try:
+        _mod = ctypes.WinDLL(_dllPath)
+    except OSError as e:
+        if ctypes.sizeof(ctypes.c_void_p) == 8:
+            raise OSError("Unable to load {}: the DLL is 32-bit, run with 32-bit Python".format(_dllPath)) from e
+        raise
+else:
+    _mod = ctypes.cdll.LoadLibrary('libslabhiddevice.so')
 
 HidDevice_GetNumHidDevices = _mod.HidDevice_GetNumHidDevices
 HidDevice_GetNumHidDevices.argtypes = (ctypes.c_int, ctypes.c_int)
@@ -100,10 +112,11 @@ def GetMaxReportRequest(device):
     return HidDevice_GetMaxReportRequest(device)
 
 def GetHidString(deviceIndex):
-    pnt = bytes(MAX_PATH_LENGTH) 
+    pnt = ctypes.create_string_buffer(MAX_PATH_LENGTH)
     status = HidDevice_GetHidString(deviceIndex, VID, PID, HID_PATH_STRING, pnt, MAX_PATH_LENGTH)
     if status == HID_DEVICE_SUCCESS:
-        return pnt.decode("utf-8")
+        # Stop at the NUL: the Windows DLL leaves junk in the rest of the buffer
+        return pnt.value.decode("utf-8")
     return ""
 
 def Open(deviceIndex):

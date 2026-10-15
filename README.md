@@ -50,6 +50,10 @@ $ sudo make install
 
 This allows libusb-1.0 to have read/write access to the device
 
+### Windows Host
+
+No build step is needed: the tool loads the prebuilt `USBDriver/SLABHIDDevice.dll`.  This DLL is 32-bit, so run the scripts with a **32-bit** Python installation.
+
 ### Running the Python Scripts
 
 Run the main.py with the firmware file as the argument:
