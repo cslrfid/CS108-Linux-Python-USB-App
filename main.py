@@ -65,7 +65,23 @@ def main():
             print("Silicon Labs (network processor) firmware upgrade successful")
         else:
             print("Silicon Labs (network processor) firmware upgrade failed")
-        
+
+        HID.Close(handle)
+    elif sys.argv[1].lower() == "/r":
+        rfidVersion=CS108FwUpgrade.GetRFIDVersion(handle)
+        print("Current RFID firmware version: {}".format(rfidVersion))
+
+        fileName = sys.argv[2]
+        print("Upgrade RFID firmware with file:", fileName)
+        in_file = open(fileName, "rb") # opening for [r]eading as [b]inary
+        stream = in_file.read()
+        in_file.close()
+
+        if CS108FwUpgrade.UpdateRFIDImage(handle, stream):
+            print("RFID firmware upgrade successful")
+        else:
+            print("RFID firmware upgrade failed")
+
         HID.Close(handle)
  
 if __name__ == '__main__':

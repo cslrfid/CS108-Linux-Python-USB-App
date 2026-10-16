@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["/B", "./FW/CS108_CC2541_APP_V1017.bin"]
+            "args": ["/B", "./FW/Bluetooth/CS108_CC2541_APP_V1020.bin"]
         }
     ]
 }
