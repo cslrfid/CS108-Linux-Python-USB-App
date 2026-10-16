@@ -2,7 +2,7 @@
 
 This tool allows you to control your reader and perform firmware update with a Linux/Windows/MacOS host
 
-The code is written in Python and tested on x64 desktop (Ubuntu 20.04 LTS) and arm32 (Raspberry Pi 4/Raspbian).
+The code is written in Python and tested on x64 desktop (Ubuntu 20.04 LTS), arm32 (Raspberry Pi 4/Raspbian) and x64 Windows (Windows 11) running a 32-bit Python runtime (Python 3.14, see [Windows Host](#windows-host)).
 
 ### Compile the HID-UART API Library on your Linux Host
 
@@ -52,7 +52,49 @@ This allows libusb-1.0 to have read/write access to the device
 
 ### Windows Host
 
-No build step is needed: the tool loads the prebuilt `USBDriver/SLABHIDDevice.dll`.  This DLL is 32-bit, so run the scripts with a **32-bit** Python installation (for example `py install 3.14-32`, then `py -V:3.14-32 main.py ...`).
+No build step and no driver installation are needed: Windows talks to the reader with its built-in USB HID driver, and the scripts load the prebuilt Silicon Labs library `USBDriver\SLABHIDDevice.dll`.
+
+**The DLL is 32-bit, so the Python scripts must run on a 32-bit Python runtime.**  A 64-bit Python cannot load a 32-bit DLL and stops with:
+
+```
+OSError: Unable to load ...\USBDriver\SLABHIDDevice.dll: the DLL is 32-bit, run with 32-bit Python
+```
+
+Many PCs have only 64-bit Python installed, and the plain `python` command usually starts it.  Set up a 32-bit runtime as follows:
+
+* Install 32-bit Python 3.14, either with the Python install manager:
+
+```
+> py install 3.14-32
+```
+
+  or with the **Windows installer (32-bit)** from [python.org](https://www.python.org/downloads/windows/).
+
+* Check that the runtime is 32-bit (it should print `32`):
+
+```
+> py -V:3.14-32 -c "import struct; print(struct.calcsize('P') * 8)"
+```
+
+* Run the scripts with that runtime, by naming it explicitly:
+
+```
+> py -V:3.14-32 main.py /B .\FW\Bluetooth\CS108_CC2541_APP_V1020.bin
+```
+
+  or with the `python3.14-32` command that the install manager adds:
+
+```
+> python3.14-32 main.py /B .\FW\Bluetooth\CS108_CC2541_APP_V1020.bin
+```
+
+* Optionally, make 32-bit Python the default so that plain `py` and `python` use it.  This affects every Python program you run, so only do it if that suits you.  Open a new terminal afterwards:
+
+```
+> setx PYTHON_MANAGER_DEFAULT 3.14-32
+```
+
+The standalone one-click app described below already contains its own 32-bit Python, so users of the packaged exe do not need any of this.
 
 ### One-Click Firmware Upgrade (Windows)
 
@@ -81,6 +123,8 @@ Run the main.py with the firmware file as the argument:
 ```
 Usage: python main.py [ /B | /N | /R ] file
 ```	
+
+On Windows, replace `python` with your 32-bit runtime (`py -V:3.14-32` or `python3.14-32`; see [Windows Host](#windows-host)).
 
 Example
 ```
