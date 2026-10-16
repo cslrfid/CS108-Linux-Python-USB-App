@@ -41,6 +41,31 @@ NV_STATUS = [
 def PrintProgress(percent):
     print("\rCompleted: {0:5.1f}%".format(percent), end="\n" if percent >= 100 else "")
 
+def _ReceiveReply(handle, code, timeout):
+    # Wait up to timeout (ms) for the CS108 packet whose payload starts with the
+    # 2-byte command code, skipping unrelated packets that can arrive in between,
+    # such as notifications (type 0xD9, e.g. event 0xA101 "error code 0").
+    buffer = bytearray()
+    deadline = time.monotonic() + timeout / 1000
+    while time.monotonic() < deadline:
+        remaining = max(1, (deadline - time.monotonic()) * 1000)
+        status, data = USBSocket.ReceiveData(handle, 128, remaining)
+        if not status:
+            return False, b""
+        buffer += data
+        while len(buffer) >= 8:
+            if buffer[0] != Constants.PREFIX:
+                del buffer[0] # resync on the next prefix byte
+                continue
+            total = buffer[2] + 8
+            if len(buffer) < total:
+                break
+            frame = bytes(buffer[:total])
+            del buffer[:total]
+            if total >= 10 and frame[8] == code[0] and frame[9] == code[1]:
+                return True, frame
+    return False, b""
+
 def GetBTVersion(handle, log=print):
     command = BTCommands.GetVersion()
 
@@ -49,7 +74,7 @@ def GetBTVersion(handle, log=print):
         return ""
 
     if HID.IsOpen(handle):
-        status, buffer = USBSocket.ReceiveData(handle, 128, 2000)
+        status, buffer = _ReceiveReply(handle, (0xC0, 0x00), 2000)
         if status:
             if (buffer[0] == Constants.PREFIX) and (len(buffer) >= 13) and (buffer[8] == 0xC0) and (buffer[9] == 0x00):
                 crc = (buffer[6] << 8) | buffer[7]
@@ -75,7 +100,7 @@ def GetSLVersion(handle, log=print):
         return ""
 
     if HID.IsOpen(handle):
-        USBSocket.ReceiveData(handle, 128, 2000)
+        _ReceiveReply(handle, (0x80, 0x00), 2000)
     else:
         log("Device is not connected.")
         return ""
@@ -87,7 +112,7 @@ def GetSLVersion(handle, log=print):
         return ""
 
     if HID.IsOpen(handle):
-        status, buffer = USBSocket.ReceiveData(handle, 128, 1000)
+        status, buffer = _ReceiveReply(handle, (0xB0, 0x00), 1000)
         if status:
             if (buffer[0] == Constants.PREFIX) and (len(buffer) >= 13) and (buffer[8] == 0xB0) and (buffer[9] == 0x00):
                 slVersion = "{}.{}.{}".format(buffer[10],buffer[11],buffer[12])
@@ -127,12 +152,12 @@ def UpdateBTImage(handle, stream, log=print, progress=PrintProgress, tick=None):
             return False
 
         if not USBSocket.TransmitData(handle, command):
-            log("Device failed to transmit data.")
+            log("Device failed to transmit data (block {} of {}).".format(subpart, Constants.BT_IMAGE_TOTAL_SUBPART))
             return False
 
         if HID.IsOpen(handle):
             readBuffer = bytes(128)
-            status, readBuffer = USBSocket.ReceiveData(handle, len(readBuffer), 5000)
+            status, readBuffer = _ReceiveReply(handle, (0xC0, 0x01), 5000)
             if status:
                 if (readBuffer[0] == Constants.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xC0) and (readBuffer[9] == 0x01):
                     if readBuffer[10] == 1:
@@ -150,10 +175,12 @@ def UpdateBTImage(handle, stream, log=print, progress=PrintProgress, tick=None):
                         retry = 0
                 else:
                     retry+=1
+                    log("Unexpected reply to block {} of {} ({}); resending.".format(subpart, Constants.BT_IMAGE_TOTAL_SUBPART, readBuffer[:40].hex(" ")))
             else:
                 retry+=1
+                log("No reply to block {} of {}; resending.".format(subpart, Constants.BT_IMAGE_TOTAL_SUBPART))
         else:
-            log("Device is not connected.")
+            log("Device is not connected (block {} of {}).".format(subpart, Constants.BT_IMAGE_TOTAL_SUBPART))
             return False
 
 
@@ -185,13 +212,17 @@ def UpdateSilabImage(handle, stream, log=print, progress=PrintProgress, tick=Non
             log("Not enough image data.")
             return False
 
+        lastBlock = (subpart == Constants.SILAB_IMAGE_TOTAL_SUBPART)
+
         if not USBSocket.TransmitData(handle, command):
-            log("Device failed to transmit data.")
+            if lastBlock and retry > 0:
+                return _SilabRestartedAfterLastBlock(log, progress, tick)
+            log("Device failed to transmit data (block {} of {}).".format(subpart, Constants.SILAB_IMAGE_TOTAL_SUBPART))
             return False
 
         if HID.IsOpen(handle):
             readBuffer = bytes(128)
-            status, readBuffer = USBSocket.ReceiveData(handle, len(readBuffer), 1000)
+            status, readBuffer = _ReceiveReply(handle, (0xB0, 0x01), 1000)
             if status:
                 if (readBuffer[0] == Constants.PREFIX) and (len(readBuffer) >= 11) and (readBuffer[8] == 0xB0) and (readBuffer[9] == 0x01):
                     if readBuffer[10] == 1:
@@ -209,11 +240,38 @@ def UpdateSilabImage(handle, stream, log=print, progress=PrintProgress, tick=Non
                         retry = 0
                 else:
                     retry+=1
+                    log("Unexpected reply to block {} of {} ({}); resending.".format(subpart, Constants.SILAB_IMAGE_TOTAL_SUBPART, readBuffer[:40].hex(" ")))
             else:
                 retry+=1
+                log("No reply to block {} of {}; resending.".format(subpart, Constants.SILAB_IMAGE_TOTAL_SUBPART))
+        elif lastBlock:
+            return _SilabRestartedAfterLastBlock(log, progress, tick)
         else:
-            log("Device is not connected.")
+            log("Device is not connected (block {} of {}).".format(subpart, Constants.SILAB_IMAGE_TOTAL_SUBPART))
             return False
+
+
+def _SilabRestartedAfterLastBlock(log, progress, tick):
+    # The network processor is also the USB bridge: once it has the last block it
+    # restarts, sometimes before its "complete" reply reaches the host. Treat it as
+    # done only if the reader comes back and the network processor reports a version.
+    log("The reader restarted before confirming the last block; checking it after the restart...")
+    progress(100.0)
+    utils.WaitForSeconds(SILAB_RESTART_WAIT, tick)
+    log("")
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if HID.GetNumHidDevices() > 0:
+            handle = HID.Open(0)
+            if handle is not None:
+                slVersion = GetSLVersion(handle, log=lambda message: None)
+                HID.Close(handle)
+                if slVersion:
+                    log("Upload complete. Network processor firmware version: {}".format(slVersion))
+                    return True
+        time.sleep(1)
+    log("The reader did not come back after the network processor upgrade.")
+    return False
 
 
 class RfidPacket:
@@ -393,7 +451,7 @@ def UpdateRFIDImage(handle, stream, log=print, progress=PrintProgress, tick=None
 
     for block in range(Constants.RFID_IMAGE_TOTAL_SUBPART):
         if not _SendRfid(handle, RFIDCommands.SendImageData(stream[block * 32:(block + 1) * 32], block)):
-            log("Device failed to transmit data.")
+            log("Device failed to transmit data (block {} of {}).".format(block + 1, Constants.RFID_IMAGE_TOTAL_SUBPART))
             return False
 
         reply = receiver.Take(_IsNVStatus, 2000)

@@ -4,6 +4,15 @@ rem Needs 32-bit Python 3.14 (the bundled SLABHIDDevice.dll is 32-bit): py insta
 setlocal
 cd /d "%~dp0"
 set PY=py -V:3.14-32
+set OUT=dist\CS108FirmwareUpgrade
+
+rem Stop before deleting anything if the previous build is still running
+if exist "%OUT%\CS108FirmwareUpgrade.exe" (
+    2>nul ( >>"%OUT%\CS108FirmwareUpgrade.exe" call ) || (
+        echo %OUT%\CS108FirmwareUpgrade.exe is in use. Close the running upgrade tool, then build again.
+        goto :error
+    )
+)
 
 %PY% -m pip install --upgrade pyinstaller || goto :error
 %PY% -m PyInstaller --noconfirm --clean --onefile --windowed --name CS108FirmwareUpgrade ^
@@ -11,7 +20,6 @@ set PY=py -V:3.14-32
     --add-binary "%CD%\USBDriver\SLABHIDDevice.dll;USBDriver" ^
     OneClickUpgrade.py || goto :error
 
-set OUT=dist\CS108FirmwareUpgrade
 if exist "%OUT%" rmdir /s /q "%OUT%"
 mkdir "%OUT%" || goto :error
 copy /y build\exe\CS108FirmwareUpgrade.exe "%OUT%\" >nul || goto :error

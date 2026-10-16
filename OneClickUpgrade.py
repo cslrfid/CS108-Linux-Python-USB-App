@@ -117,7 +117,9 @@ class Workflow:
 
                 version = getVersion(handle, log=self.Log)
                 if not version:
-                    raise UpgradeError("Cannot read the current {} firmware version.\n{}".format(name, self.lastMessage))
+                    # e.g. left in its bootloader by an interrupted upgrade; the upgrade itself can recover it
+                    self.Log("Cannot read the current version; continuing with the upgrade.")
+                    version = "unknown"
                 self.Post("step", title, version, os.path.basename(fileName))
                 self.Log("Current version: {}".format(version))
                 self.Log("Upgrading with file: {}".format(fileName))
